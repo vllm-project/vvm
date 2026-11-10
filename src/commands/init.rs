@@ -163,7 +163,7 @@ function vvm
     switch "$cmd"
         case use install
             if test $exit_code -eq 0
-                eval (command vvm env)
+                eval (command vvm env --shell fish)
             end
     end
     return $exit_code
@@ -173,7 +173,7 @@ end
 complete -c vvm -n '__fish_seen_subcommand_from use uninstall exec' -f -a '(command vvm list-installed 2>/dev/null)'
 
 # Load current version if set
-eval (command vvm env)
+eval (command vvm env --shell fish)
 
 "#
     );

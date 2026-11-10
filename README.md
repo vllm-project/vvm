@@ -279,7 +279,7 @@ Each installed version gets its own Python virtual environment under `~/.vvm/ver
 | `--path ~/vllm` | Local repo | `VLLM_USE_PRECOMPILED=1 uv pip install -e ~/vllm` |
 | `--path ~/vllm --compile` | Local repo | `uv pip install -e ~/vllm --no-build-isolation-package vllm` (kernels built from source) |
 
-**Version switching** updates the `current` symlink. The shell hook (`vvm init bash`) wraps the `vvm` binary so that `vvm use` automatically updates `PATH` and `VIRTUAL_ENV` in your current shell.
+**Version switching** updates the `current` symlink. The shell hook (`vvm init bash`) wraps the `vvm` binary so that `vvm use` automatically updates `PATH` and `VIRTUAL_ENV` in your current shell. Fish integration uses `vvm env --shell fish` to generate its activation commands; `vvm env` defaults to Bash/Zsh syntax.
 
 **Variant verification:** After install, vvm checks that the installed vllm wheel matches the requested CUDA variant. Skipped on login nodes where GPU driver is unavailable.
 
@@ -316,6 +316,7 @@ Each installed version gets its own Python virtual environment under `~/.vvm/ver
 ## Contributing
 
 Development setup and architecture notes live in [AGENTS.md](AGENTS.md).
+Shell integration tests require `fish` and `zsh` in addition to Bash.
 
 ```bash
 git config core.hooksPath .githooks   # reject unformatted commits locally

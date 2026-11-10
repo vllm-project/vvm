@@ -131,7 +131,11 @@ enum Commands {
         repo: Option<String>,
     },
     /// Print shell environment variables for the current version
-    Env,
+    Env {
+        /// Shell syntax for the activation commands
+        #[arg(long, default_value = "bash", value_parser = ["bash", "zsh", "fish"])]
+        shell: String,
+    },
     /// Print shell initialization code
     Init {
         /// Shell type: bash, zsh, fish
@@ -217,7 +221,7 @@ fn main() {
             commands::alias::run(&config, name.as_deref(), target.as_deref())
         }
         Commands::Unalias { name } => commands::alias::remove(&config, &name),
-        Commands::Env => commands::env::run(&config),
+        Commands::Env { shell } => commands::env::run(&config, &shell),
         Commands::Init { shell } => commands::init::run(&shell),
         Commands::Exec { specifier, cmd } => exec_with_version(&config, &specifier, &cmd),
         Commands::ListInstalled => {

@@ -20,6 +20,8 @@ jobs:
         with:
           tool: cargo-sort
       - uses: Swatinem/rust-cache@v2
+      - name: Install shells for activation tests
+        run: sudo apt-get update && sudo apt-get install -y fish zsh
       - run: cargo fmt --all -- --check
       - run: cargo sort --check -w
       - run: cargo clippy --all-targets --all-features -- -D warnings
