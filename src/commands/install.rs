@@ -365,7 +365,7 @@ pub fn run(
     } else if source {
         install_from_source(&venv_path, &specifier, &cuda, &commit_hash, &spinner)
     } else if matches!(specifier, VersionSpecifier::Nightly) {
-        // Nightly: try nightly index first, then fallback to recent main commits
+        // Nightly: try the selected variant's index before any commit fallback.
         install_nightly_with_fallback(&venv_path, &cuda, &spinner)
     } else if matches!(specifier, VersionSpecifier::Branch(_)) {
         // Branch: try HEAD commit wheel first, then walk back recent branch commits
@@ -994,18 +994,17 @@ fn version_newer_than(a: &str, b: &str) -> bool {
     parts(a) > parts(b)
 }
 
-/// Try nightly index first. If no wheel exists for this arch/variant,
-/// find the most recent main commit with a wheel and install from that.
+/// Try the variant's nightly index first. If no wheel is available, fall back
+/// to recent main commits except for the frozen cu129 compatibility index.
 fn install_nightly_with_fallback(
     venv_path: &std::path::Path,
     cuda: &CudaVariant,
     spinner: &ProgressBar,
 ) -> Result<(), VvmError> {
     let client = wheel_client();
-    // Fast check: does the nightly index have a wheel for the current arch?
-    let nightly_has_wheel = lookup_wheel_url(&client, "nightly", cuda).is_some();
-
-    if nightly_has_wheel {
+    // The unqualified commit indexes used for historical cu129 wheels may
+    // now serve a different CUDA variant. Keep cu129 on its compatibility feed.
+    if matches!(cuda, CudaVariant::Cu129) || lookup_wheel_url(&client, "nightly", cuda).is_some() {
         let spec = VersionSpecifier::Nightly;
         return install_from_wheel(venv_path, &spec, cuda, &Some("nightly".to_string()));
     }
@@ -2735,13 +2734,13 @@ fn find_release_wheel_url(
 }
 
 fn nightly_index_url(cuda: &CudaVariant) -> String {
-    match cuda {
-        CudaVariant::Cu129 => "https://wheels.vllm.ai/nightly".to_string(),
-        other => format!("https://wheels.vllm.ai/nightly/{}", other.as_str()),
-    }
+    format!("https://wheels.vllm.ai/nightly/{}", cuda.as_str())
 }
 
 fn commit_index_url(commit: &str, cuda: &CudaVariant) -> String {
+    if commit == "nightly" {
+        return nightly_index_url(cuda);
+    }
     match cuda {
         CudaVariant::Cu129 => format!("https://wheels.vllm.ai/{}", commit),
         other => format!("https://wheels.vllm.ai/{}/{}", commit, other.as_str()),
@@ -2788,11 +2787,6 @@ fn torch_index_url(cuda: &CudaVariant) -> String {
     format!("https://download.pytorch.org/whl/{}", cuda.as_str())
 }
 
-/// Check if a precompiled wheel exists for a given commit and CUDA variant
-/// by HEADing the metadata.json from wheels.vllm.ai.
-///
-/// Uses the same URL structure as `commit_index_url` — cu129 has no variant
-/// subdir (`/{commit}/vllm/metadata.json`), others use `/{commit}/{variant}/`.
 /// Look up the arch-matched wheel URL at a given commit (or "nightly").
 /// Returns None if metadata.json is absent, malformed, or has no entry for
 /// the current architecture. Stricter than a HEAD check — a commit whose
@@ -3607,8 +3601,9 @@ fn set_default_if_first(config: &Config, version_dir: &Path) -> Result<(), VvmEr
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_timestamp, compiled_drift_since, compiled_drift_worktree, find_reusable_compiled,
-        merge_base_with_main, rev_exists, torch_version_at_commit, version_newer_than,
+        commit_index_url, commit_timestamp, compiled_drift_since, compiled_drift_worktree,
+        find_reusable_compiled, merge_base_with_main, nightly_index_url, rev_exists,
+        torch_version_at_commit, version_newer_than,
     };
     use crate::config::Config;
     use crate::cuda::CudaVariant;
@@ -3616,6 +3611,33 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn nightly_wheel_index_uses_the_cuda_variant() {
+        for (variant, tag) in [
+            (CudaVariant::Cu128, "cu128"),
+            (CudaVariant::Cu129, "cu129"),
+            (CudaVariant::Cu130, "cu130"),
+            (CudaVariant::Cpu, "cpu"),
+        ] {
+            let expected = format!("https://wheels.vllm.ai/nightly/{tag}");
+            assert_eq!(nightly_index_url(&variant), expected);
+            assert_eq!(commit_index_url("nightly", &variant), expected);
+        }
+    }
+
+    #[test]
+    fn commit_wheel_index_preserves_the_historical_cu129_layout() {
+        let commit = "77154ca6116ae34cbfe314beef1016bde9b63989";
+        assert_eq!(
+            commit_index_url(commit, &CudaVariant::Cu129),
+            format!("https://wheels.vllm.ai/{commit}")
+        );
+        assert_eq!(
+            commit_index_url(commit, &CudaVariant::Cu130),
+            format!("https://wheels.vllm.ai/{commit}/cu130")
+        );
+    }
 
     /// Self-cleaning temp directory (mirrors tests/concurrent_install.rs).
     struct TempRepo {

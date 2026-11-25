@@ -78,7 +78,7 @@ vvm ls                        # List installed versions
 
 ```bash
 vvm install 0.18.0                    # Release version
-vvm install nightly                   # Latest nightly build
+vvm install nightly                   # Latest nightly build for the selected variant
 vvm install commit:abc123def          # Specific commit (uses wheels.vllm.ai)
 vvm install branch:main               # Branch HEAD (falls back to recent commits if no wheel yet)
 vvm install pr:1234                   # PR HEAD commit
@@ -86,6 +86,8 @@ vvm install 0.18.0 --python python3.12  # Pick the interpreter for the venv
 ```
 
 Branch installs automatically fall back to the most recent commit on that branch with a precompiled wheel available on wheels.vllm.ai if the HEAD commit doesn't have one yet.
+
+`vvm install nightly --cuda cu129` uses the frozen CUDA 12.9 compatibility index. If that index has no wheel for your platform, the install fails with a wheel lookup error.
 
 **Auto-update:** Re-running `vvm install branch:main`, `pr:1234`, or `nightly` for an already-installed version detects if a newer upstream commit exists and reinstalls in place. No need to `uninstall` first.
 
@@ -272,7 +274,7 @@ Each installed version gets its own Python virtual environment under `~/.vvm/ver
 | Specifier | Source | Strategy |
 |-----------|--------|---------|
 | `0.18.0` | wheels.vllm.ai + PyPI | `uv pip install vllm==0.18.0 --extra-index-url .../cu130` |
-| `nightly` | wheels.vllm.ai/nightly | Direct wheel URL from metadata.json, fallback to recent main commits |
+| `nightly` | wheels.vllm.ai/nightly/{variant} | Direct wheel URL from metadata.json, with a fallback to recent main commits for variants other than CUDA 12.9 |
 | `commit:abc123` | wheels.vllm.ai/{commit} | Direct wheel URL; on miss falls back to source mode (cloned commit + nearby wheel) |
 | `branch:main` | GitHub API → commit → wheels.vllm.ai | Direct wheel URL; fallback walks back 30 recent branch commits |
 | `pr:1234` | GitHub API → commit → wheels.vllm.ai | Direct wheel URL |
